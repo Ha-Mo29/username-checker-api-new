@@ -1,41 +1,37 @@
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch');
+const axios = require('axios');
+
 const app = express();
 const port = process.env.PORT || 3000;
 app.use(cors());
 
-// Instagram Check
-app.get('/check/instagram/:username', async (req, res) => {
-  const username = req.params.username;
+// Helper to check availability
+async function isUsernameAvailable(url) {
   try {
-    const response = await fetch(`https://www.instagram.com/${username}`, { method: 'HEAD' });
-    res.json({ available: response.status === 404 });
-  } catch {
-    res.status(500).json({ error: 'Error checking Instagram' });
+    const response = await axios.head(url, { timeout: 5000 });
+    return response.status === 404;
+  } catch (err) {
+    if (err.response && err.response.status === 404) {
+      return true; // Username is available
+    }
+    return false; // Username is taken or unknown error
   }
-});
+}
 
-// TikTok Check
-app.get('/check/tiktok/:username', async (req, res) => {
-  const username = req.params.username;
-  try {
-    const response = await fetch(`https://www.tiktok.com/@${username}`, { method: 'HEAD' });
-    res.json({ available: response.status === 404 });
-  } catch {
-    res.status(500).json({ error: 'Error checking TikTok' });
-  }
-});
+// Instagram
+app.get('/api/check', async (req, res) => {
+  const { platform, username } = req.query;
+  if (!platform || !username) return res.status(400).json({ error: 'Missing parameters' });
 
-// Snapchat Check
-app.get('/check/snapchat/:username', async (req, res) => {
-  const username = req.params.username;
-  try {
-    const response = await fetch(`https://www.snapchat.com/add/${username}`, { method: 'HEAD' });
-    res.json({ available: response.status === 404 });
-  } catch {
-    res.status(500).json({ error: 'Error checking Snapchat' });
-  }
+  let url = '';
+  if (platform === 'instagram') url = `https://www.instagram.com/${username}`;
+  else if (platform === 'tiktok') url = `https://www.tiktok.com/@${username}`;
+  else if (platform === 'snapchat') url = `https://www.snapchat.com/add/${username}`;
+  else return res.status(400).json({ error: 'Invalid platform' });
+
+  const available = await isUsernameAvailable(url);
+  res.json({ platform, username, available });
 });
 
 app.listen(port, () => {
